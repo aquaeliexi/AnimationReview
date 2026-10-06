@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprite Animation Reviewer (128x128 / 5コマ)</title>
+    <style>
+        :root {
+            --bg-main: #1e1e24;
+            --bg-panel: #282830;
+            --bg-sub: #33333d;
+            --text-main: #e0e0e6;
+            --text-muted: #9a9aa8;
+            --accent: #5c7cfa;
+            --accent-hover: #4c6ef5;
+            --accent-active: #3b5bdb;
+            --border: #444452;
+            --highlight: #ffd43b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        header {
+            padding: 12px 24px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        header .spec-badge {
+            font-size: 0.75rem;
+            background: var(--bg-sub);
+            color: var(--accent);
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+
+        .main-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* プレビュー表示エリア */
+        .viewport-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            background: #141418;
+            overflow: auto;
+        }
+
+        .drop-zone-overlay {
+            position: absolute;
+            inset: 12px;
+            border: 2px dashed var(--accent);
+            border-radius: 8px;
+            background: rgba(92, 124, 250, 0.08);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: var(--accent);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .drop-zone-overlay.active {
+            display: flex;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            background-color: #2a2a32;
+        }
+
+        /* 背景チェッカーボードパターン */
+        .bg-checkered {
+            background-image:
+                linear-gradient(45deg, #25252d 25%, transparent 25%),
+                linear-gradient(-45deg, #25252d 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #25252d 75%),
+                linear-gradient(-45deg, transparent 75%, #25252d 75%);
+            background-size: 16px 16px;
+            background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+            background-color: #1a1a20;
+        }
+        .bg-dark { background: #000000; }
+        .bg-unity { background: #383838; }
+        .bg-light { background: #e0e0e0; }
+        .bg-green { background: #00b140; }
+
+        canvas#mainCanvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        /* サイドバー / コントロールパネル */
+        .sidebar {
+            width: 340px;
+            background: var(--bg-panel);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .panel-section {
+            background: var(--bg-sub);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .panel-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        button {
+            background: var(--border);
+            color: var(--text-main);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+        }
+
+        button:hover {
+            background: #505060;
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        button.primary {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        button.primary:hover {
+            background: var(--accent-hover);
+        }
+
+        button.active {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .btn-preset-size, .btn-preset-frames {
+            padding: 3px 8px;
+            font-size: 0.75rem;
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .btn-preset-size.active, .btn-preset-frames.active {
+            background: var(--accent);
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control-label-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .control-val {
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 0.85rem;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .checkbox-label input {
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        /* 下部 コマ一覧 (スプライトストリップ) */
+        .bottom-strip {
+            background: var(--bg-panel);
+            border-top: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .strip-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .frames-container {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .frame-thumb {
+            width: 80px;
+            height: 80px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            background: #141418;
+            position: relative;
+            cursor: pointer;
+            overflow: hidden;
+            transition: all 0.15s ease;
+        }
+
+        .frame-thumb:hover {
+            border-color: var(--accent-hover);
+        }
+
+        .frame-thumb.current {
+            border-color: var(--highlight);
+            box-shadow: 0 0 8px rgba(255, 212, 59, 0.4);
+        }
+
+        .frame-thumb canvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        .frame-num-badge {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 0.65rem;
+            background: rgba(0,0,0,0.7);
+            padding: 1px 4px;
+            border-radius: 2px;
+            color: var(--text-main);
+        }
+
+        .info-table {
+            width: 100%;
+            font-size: 0.75rem;
+            border-collapse: collapse;
+        }
+
+        .info-table td {
+            padding: 3px 0;
+            color: var(--text-muted);
+        }
+
+        .info-table td.val {
+            text-align: right;
+            color: var(--text-main);
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎮 Sprite Animation Reviewer</h1>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <span class="spec-badge" id="badgeResolution">128 × 128 px</span>
+            <span class="spec-badge" id="badgeFrames">5 コマ</span>
+            <span class="spec-badge" id="badgePpu">PPU 32 (4.0×4.0 Unit)</span>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <!-- プレビュー表示エリア -->
+        <main class="viewport-container" id="dropArea">
+            <div class="drop-zone-overlay" id="dropOverlay">
+                📂 スプライトシートPNGをここにドロップ
+            </div>
+
+            <div class="canvas-wrapper bg-checkered" id="canvasWrapper">
+                <canvas id="mainCanvas" width="128" height="128"></canvas>
+            </div>
+        </main>
+
+        <!-- 操作サイドバー -->
+        <aside class="sidebar">
+            <!-- スプライト仕様設定 -->
+            <section class="panel-section">
+                <div class="panel-title">スプライトシート仕様設定</div>
+                
+                <!-- 1コマ解像度 (幅と高さをそれぞれ設定可能) -->
+                <div class="control-item">
+                    <div class="control-label-row">
+                        <span>1コマ解像度 (幅 × 高さ)</span>
+                        <span class="control-val"><span id="sizeVal">128</span> × <span id="sizeValH">128</span> px</span>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <div style="flex:1;">
+                            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:2px;">幅 (W: 16〜256px)</div>
+                            <input type="number" id="inputFrameWidth" min="16" max="256" value="128" step="1" style="width:100%; padding:6px 8px; background:var(--bg-main); border:1px solid var(--border); color:var(--text-main); border-radius:4px; font-weight:600;">
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:2px;">高さ (H: 16〜256px)</div>
+                            <input type="number" id="inputFrameHeight" min="16" max="256" value="128" step="1" style="width:100%; padding:6px 8px; background:var(--bg-main); border:1px solid var(--border); color:var(--text-main); border-radius:4px; font-weight:600;">
+                        </div>
+                    </div>
+                    <div class="checkbox-group" style="margin-top:4px;">
+                        <label class="checkbox-label" style="font-size:0.8rem;">
+                            <input type="checkbox" id="chkLinkSize" checked>
+                            <span>縦横サイズ連動 (1:1)</span>
+                        </label>
+                    </div>
+                    <!-- プリセットボタン -->
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:6px;">正方形プリセット (px)</div>
+                    <div class="btn-row-wrap" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;">
+                        <button class="btn-preset-size" data-size="16">16</button>
+                        <button class="btn-preset-size" data-size="24">24</button>
+                        <button class="btn-preset-size" data-size="32">32</button>
+                        <button class="btn-preset-size" data-size="48">48</button>
+                        <button class="btn-preset-size" data-size="64">64</button>
+                        <button class="btn-preset-size" data-size="96">96</button>
+                        <button class="btn-preset-size active" data-size="128">128</button>
+                        <button class="btn-preset-size" data-size="256">256</button>
+                    </div>
+                </div>
+
+                <!-- コマ数 -->
+                <div class="control-item" style="margin-top:6px;">
+                    <div class="control-label-row">
+                        <span>アニメーションコマ数 (横並び)</span>
+                        <span class="control-val"><span id="frameCountVal">5</span> コマ</span>
+                    </div>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <input type="number" id="inputFrameCount" min="1" max="64" value="5" step="1" style="flex:1; padding:6px 8px; background:var(--bg-main); border:1px solid var(--border); color:var(--text-main); border-radius:4px; font-weight:600;">
+                        <span style="font-size:0.8rem; color:var(--text-muted);">コマ (1〜64)</span>
+                    </div>
+                    <!-- コマ数プリセット -->
+                    <div class="btn-row-wrap" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                        <button class="btn-preset-frames" data-frames="3">3</button>
+                        <button class="btn-preset-frames" data-frames="4">4</button>
+                        <button class="btn-preset-frames active" data-frames="5">5</button>
+                        <button class="btn-preset-frames" data-frames="6">6</button>
+                        <button class="btn-preset-frames" data-frames="8">8</button>
+                        <button class="btn-preset-frames" data-frames="10">10</button>
+                        <button class="btn-preset-frames" data-frames="12">12</button>
+                        <button class="btn-preset-frames" data-frames="16">16</button>
+                    </div>
+                </div>
+
+                <div class="checkbox-group" style="margin-top:4px;">
+                    <label class="checkbox-label" title="画像読み込み時に高さと幅から1コマ解像度とコマ数を自動推定して設定します">
+                        <input type="checkbox" id="chkAutoDetect" checked>
+                        <span>画像読み込み時に仕様を自動判定</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- ファイル読み込み -->
+            <section class="panel-section">
+                <div class="panel-title">スプライトシート読込</div>
+                <div class="file-input-wrapper">
+                    <button class="primary" style="width: 100%;">📁 PNGファイルを選択</button>
+                    <input type="file" id="fileInput" accept="image/png">
+                </div>
+                <button id="btnLoadSample" style="width: 100%;">🔄 サンプルモーション再生成</button>
+            </section>
+
+            <!-- 再生コントロール -->
+            <section class="panel-section">
+                <div class="panel-title">再生コントロール</div>
+                <div class="btn-row">
+                    <button id="btnPlayPause" class="primary" style="flex:1;">⏸ 一時停止</button>
+                    <button id="btnStepPrev" title="前のコマへ [←]">◀ コマ戻し</button>
+                    <button id="btnStepNext" title="次のコマへ [→]">コマ送り ▶</button>
+                </div>
+
+                <div class="control-item">
+                    <div class="control-label-row">
+                        <span>フレームレート (FPS)</span>
+                        <span class="control-val"><span id="fpsVal">30</span> fps</span>
+                    </div>
+                    <input type="range" id="fpsRange" min="1" max="60" value="30">
+                </div>
+
+                <div class="control-item">
+                    <div class="control-label-row">
+                        <span>1周所要時間</span>
+                        <span class="control-val" id="durationVal">0.167 s</span>
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="chkLoop" checked>
+                        <span>ループ再生</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- ビュー設定 -->
+            <section class="panel-section">
+                <div class="panel-title">表示設定</div>
+                <div class="control-item">
+                    <div class="control-label-row">
+                        <span>ズーム倍率</span>
+                        <span class="control-val" id="zoomVal">3x (384px)</span>
+                    </div>
+                    <input type="range" id="zoomRange" min="1" max="6" value="3" step="1">
+                </div>
+
+                <div class="control-item">
+                    <span style="font-size:0.8rem; color:var(--text-muted);">背景パターン</span>
+                    <div class="btn-row" style="margin-top:4px;">
+                        <button class="btn-bg active" data-bg="bg-checkered">透過</button>
+                        <button class="btn-bg" data-bg="bg-unity">Unity</button>
+                        <button class="btn-bg" data-bg="bg-dark">黒</button>
+                        <button class="btn-bg" data-bg="bg-light">白</button>
+                        <button class="btn-bg" data-bg="bg-green">緑</button>
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="chkPivot" checked>
+                        <span>中心ピボット線（十字）</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="chkPpuGrid">
+                        <span>PPU 32 グリッド（1 Unit枠）</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="chkBorder" checked>
+                        <span><span id="borderLabel">128px</span> 外枠ガイド</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- アセット情報 -->
+            <section class="panel-section">
+                <div class="panel-title">アセット仕様詳細</div>
+                <table class="info-table">
+                    <tr><td>画像全体</td><td class="val" id="sheetSizeLabel">640 × 128 px</td></tr>
+                    <tr><td>1コマ解像度</td><td class="val" id="frameSizeLabel">128 × 128 px</td></tr>
+                    <tr><td>総フレーム数</td><td class="val" id="totalFramesLabel">5 コマ</td></tr>
+                    <tr><td>PPU (Pixels Per Unit)</td><td class="val">32 px/unit</td></tr>
+                    <tr><td>Unityワールドサイズ</td><td class="val" id="unitySizeLabel">4.0 × 4.0 Unit</td></tr>
+                    <tr><td>現在のフレーム</td><td class="val" id="currentFrameLabel">1 / 5</td></tr>
+                </table>
+            </section>
+        </aside>
+    </div>
+
+    <!-- 下部 コマ一覧ストリップ -->
+    <div class="bottom-strip">
+        <div class="strip-header">
+            <span>スプライトストリップ（クリックでコマ選択）</span>
+            <span id="stripInfo">横5コマ並び (0〜4)</span>
+        </div>
+        <div class="frames-container" id="framesContainer">
+            <!-- 5つのコマサムネイルがJSで初期化される -->
+        </div>
+    </div>
+
+    <script>
+        /**
+         * @typedef {Object} AppState
+         * @property {number} frameWidth
+         * @property {number} frameHeight
+         * @property {number} totalFrames
+         * @property {number} fps
+         * @property {boolean} isPlaying
+         * @property {boolean} isLoop
+         * @property {number} currentFrame
+         * @property {number} zoom
+         * @property {boolean} showPivot
+         * @property {boolean} showPpuGrid
+         * @property {boolean} showBorder
+         * @property {string} bgClass
+         */
+        const STATE = {
+            frameWidth: 128,
+            frameHeight: 128,
+            totalFrames: 5,
+            fps: 30,
+            isPlaying: true,
+            isLoop: true,
+            currentFrame: 0,
+            zoom: 3,
+            showPivot: true,
+            showPpuGrid: false,
+            showBorder: true,
+            bgClass: 'bg-checkered'
+        };
+
+        // DOM要素
+        const mainCanvas = document.getElementById('mainCanvas');
+        const mainCtx = mainCanvas.getContext('2d');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+        const dropArea = document.getElementById('dropArea');
+        const dropOverlay = document.getElementById('dropOverlay');
+        const fileInput = document.getElementById('fileInput');
+        const btnLoadSample = document.getElementById('btnLoadSample');
+        const btnPlayPause = document.getElementById('btnPlayPause');
+        const btnStepPrev = document.getElementById('btnStepPrev');
+        const btnStepNext = document.getElementById('btnStepNext');
+        const fpsRange = document.getElementById('fpsRange');
+        const fpsVal = document.getElementById('fpsVal');
+        const durationVal = document.getElementById('durationVal');
+        const chkLoop = document.getElementById('chkLoop');
+        const zoomRange = document.getElementById('zoomRange');
+        const zoomVal = document.getElementById('zoomVal');
+        const chkPivot = document.getElementById('chkPivot');
+        const chkPpuGrid = document.getElementById('chkPpuGrid');
+        const chkBorder = document.getElementById('chkBorder');
+        const currentFrameLabel = document.getElementById('currentFrameLabel');
+        const framesContainer = document.getElementById('framesContainer');
+        const sheetSizeLabel = document.getElementById('sheetSizeLabel');
+
+        // スプライト仕様設定用DOM
+        const inputFrameWidth = document.getElementById('inputFrameWidth');
+        const inputFrameHeight = document.getElementById('inputFrameHeight');
+        const chkLinkSize = document.getElementById('chkLinkSize');
+        const inputFrameCount = document.getElementById('inputFrameCount');
+        const sizeVal = document.getElementById('sizeVal');
+        const sizeValH = document.getElementById('sizeValH');
+        const frameCountVal = document.getElementById('frameCountVal');
+        const chkAutoDetect = document.getElementById('chkAutoDetect');
+        const badgeResolution = document.getElementById('badgeResolution');
+        const badgeFrames = document.getElementById('badgeFrames');
+        const badgePpu = document.getElementById('badgePpu');
+        const frameSizeLabel = document.getElementById('frameSizeLabel');
+        const totalFramesLabel = document.getElementById('totalFramesLabel');
+        const unitySizeLabel = document.getElementById('unitySizeLabel');
+        const borderLabel = document.getElementById('borderLabel');
+
+        // スプライトシート画像オブジェクト
+        let spriteSheetImg = new Image();
+        let spriteSheetLoaded = false;
+        let lastFrameTime = 0;
+        let thumbCanvases = [];
+
+        /**
+         * スプライトの解像度（幅・高さ）およびコマ数を更新する
+         * @param {number} width 1コマの幅 (16〜256px)
+         * @param {number} height 1コマの高さ (16〜256px)
+         * @param {number} frames コマ数 (1〜64)
+         * @param {boolean} updateInputs 入力フォームの値を同期するか
+         */
+        function setSpriteConfig(width, height, frames, updateInputs = true) {
+            const clampedW = Math.max(16, Math.min(256, Math.round(width)));
+            const clampedH = Math.max(16, Math.min(256, Math.round(height)));
+            const clampedFrames = Math.max(1, Math.min(64, Math.round(frames)));
+
+            STATE.frameWidth = clampedW;
+            STATE.frameHeight = clampedH;
+            STATE.totalFrames = clampedFrames;
+
+            if (STATE.currentFrame >= STATE.totalFrames) {
+                STATE.currentFrame = 0;
+            }
+
+            if (updateInputs) {
+                inputFrameWidth.value = clampedW;
+                inputFrameHeight.value = clampedH;
+                inputFrameCount.value = clampedFrames;
+            }
+
+            // メインキャンバスのバッファサイズ更新
+            mainCanvas.width = STATE.frameWidth;
+            mainCanvas.height = STATE.frameHeight;
+
+            initThumbnails();
+            updateThumbnails();
+            updateUI();
+            renderCurrentFrame();
+        }
+
+        /**
+         * サンプル用のスプライトシート（近接斬撃エフェクト＋キャラ風アニメーション）を動的生成
+         * 任意の幅・高さ（16〜256px）およびコマ数（1〜64）に自動スケール
+         * @returns {string} Data URL
+         */
+        function generateSampleSpriteSheet() {
+            const canvas = document.createElement('canvas');
+            canvas.width = STATE.frameWidth * STATE.totalFrames;
+            canvas.height = STATE.frameHeight;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const scaleX = STATE.frameWidth / 128;
+            const scaleY = STATE.frameHeight / 128;
+            const minScale = Math.min(scaleX, scaleY);
+            const fw = STATE.frameWidth;
+            const fh = STATE.frameHeight;
+
+            for (let f = 0; f < STATE.totalFrames; f++) {
+                const ox = f * fw;
+                const cx = ox + fw / 2;
+                const cy = fh / 2;
+                const progress = STATE.totalFrames > 1 ? f / (STATE.totalFrames - 1) : 0;
+
+                // キャラクター本体の前後移動
+                const bodyOffsetX = (progress < 0.25 ? -4 : progress < 0.6 ? 8 : progress < 0.8 ? 4 : 0) * scaleX;
+
+                // 体
+                ctx.fillStyle = '#4dabf7';
+                ctx.fillRect(cx - 12 * scaleX + bodyOffsetX, cy - 20 * scaleY, 24 * scaleX, 40 * scaleY);
+
+                // 頭部
+                ctx.fillStyle = '#ffd43b';
+                ctx.beginPath();
+                ctx.arc(cx + bodyOffsetX, cy - 28 * scaleY, 10 * minScale, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 剣/斬撃エフェクト
+                ctx.lineCap = 'round';
+
+                if (progress < 0.25) {
+                    // 構え (ため)
+                    ctx.lineWidth = Math.max(1, 5 * minScale);
+                    ctx.strokeStyle = '#ff6b6b';
+                    ctx.beginPath();
+                    ctx.moveTo(cx - 8 * scaleX, cy);
+                    ctx.lineTo(cx - 28 * scaleX, cy - 16 * scaleY);
+                    ctx.stroke();
+                } else if (progress < 0.5) {
+                    // 振り上げ
+                    ctx.lineWidth = Math.max(1, 6 * minScale);
+                    ctx.strokeStyle = '#ff6b6b';
+                    ctx.beginPath();
+                    ctx.moveTo(cx - 4 * scaleX, cy - 8 * scaleY);
+                    ctx.lineTo(cx - 20 * scaleX, cy - 42 * scaleY);
+                    ctx.stroke();
+                } else if (progress < 0.75) {
+                    // 斬撃一閃（円弧エフェクト）
+                    ctx.lineWidth = Math.max(1, 7 * minScale);
+                    ctx.strokeStyle = '#ff8787';
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy, 46 * scaleX, 46 * scaleY, 0, -Math.PI * 0.75, Math.PI * 0.25);
+                    ctx.stroke();
+
+                    ctx.lineWidth = Math.max(1, 2 * minScale);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.stroke();
+                } else {
+                    // 振り抜き・残心
+                    ctx.lineWidth = Math.max(1, 4 * minScale);
+                    ctx.strokeStyle = '#fa5252';
+                    ctx.beginPath();
+                    ctx.moveTo(cx + 6 * scaleX, cy + 6 * scaleY);
+                    ctx.lineTo(cx + 36 * scaleX, cy + 18 * scaleY);
+                    ctx.stroke();
+                }
+            }
+
+            return canvas.toDataURL('image/png');
+        }
+
+        /**
+         * サムネイルストリップのUIを初期化
+         */
+        function initThumbnails() {
+            framesContainer.innerHTML = '';
+            thumbCanvases = [];
+
+            const thumbH = 80;
+            const thumbW = Math.max(32, Math.min(160, Math.round(thumbH * (STATE.frameWidth / STATE.frameHeight))));
+
+            for (let i = 0; i < STATE.totalFrames; i++) {
+                const thumbBox = document.createElement('div');
+                thumbBox.className = `frame-thumb ${i === STATE.currentFrame ? 'current' : ''}`;
+                thumbBox.dataset.frameIndex = i;
+                thumbBox.style.width = `${thumbW}px`;
+                thumbBox.style.height = `${thumbH}px`;
+
+                const thumbCanvas = document.createElement('canvas');
+                thumbCanvas.width = STATE.frameWidth;
+                thumbCanvas.height = STATE.frameHeight;
+                thumbBox.appendChild(thumbCanvas);
+
+                const badge = document.createElement('span');
+                badge.className = 'frame-num-badge';
+                badge.textContent = `F${i + 1}`;
+                thumbBox.appendChild(badge);
+
+                thumbBox.addEventListener('click', () => {
+                    STATE.currentFrame = i;
+                    updateUI();
+                    renderCurrentFrame();
+                });
+
+                framesContainer.appendChild(thumbBox);
+                thumbCanvases.push(thumbCanvas);
+            }
+        }
+
+        /**
+         * サムネイル描画を更新
+         */
+        function updateThumbnails() {
+            if (!spriteSheetLoaded) return;
+
+            for (let i = 0; i < STATE.totalFrames; i++) {
+                const ctx = thumbCanvases[i].getContext('2d');
+                ctx.clearRect(0, 0, STATE.frameWidth, STATE.frameHeight);
+                ctx.drawImage(
+                    spriteSheetImg,
+                    i * STATE.frameWidth, 0, STATE.frameWidth, STATE.frameHeight,
+                    0, 0, STATE.frameWidth, STATE.frameHeight
+                );
+            }
+        }
+
+        /**
+         * 現在のフレームを描画
+         */
+        function renderCurrentFrame() {
+            mainCtx.clearRect(0, 0, STATE.frameWidth, STATE.frameHeight);
+
+            if (spriteSheetLoaded) {
+                // スプライトシートから指定フレームを切り出して描画
+                mainCtx.drawImage(
+                    spriteSheetImg,
+                    STATE.currentFrame * STATE.frameWidth, 0, STATE.frameWidth, STATE.frameHeight,
+                    0, 0, STATE.frameWidth, STATE.frameHeight
+                );
+            }
+
+            // ガイド描画: 128px枠
+            if (STATE.showBorder) {
+                mainCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+                mainCtx.lineWidth = 1;
+                mainCtx.strokeRect(0.5, 0.5, STATE.frameWidth - 1, STATE.frameHeight - 1);
+            }
+
+            // ガイド描画: PPU 32 グリッド (32px毎 = 1 Unity Unit)
+            if (STATE.showPpuGrid) {
+                mainCtx.strokeStyle = 'rgba(92, 124, 250, 0.35)';
+                mainCtx.lineWidth = 1;
+                for (let x = 32; x < STATE.frameWidth; x += 32) {
+                    mainCtx.beginPath();
+                    mainCtx.moveTo(x + 0.5, 0);
+                    mainCtx.lineTo(x + 0.5, STATE.frameHeight);
+                    mainCtx.stroke();
+                }
+                for (let y = 32; y < STATE.frameHeight; y += 32) {
+                    mainCtx.beginPath();
+                    mainCtx.moveTo(0, y + 0.5);
+                    mainCtx.lineTo(STATE.frameWidth, y + 0.5);
+                    mainCtx.stroke();
+                }
+            }
+
+            // ガイド描画: 中心ピボット (64, 64)
+            if (STATE.showPivot) {
+                mainCtx.strokeStyle = 'rgba(255, 107, 107, 0.85)';
+                mainCtx.lineWidth = 1;
+                const cx = STATE.frameWidth / 2 + 0.5;
+                const cy = STATE.frameHeight / 2 + 0.5;
+
+                // 十字線
+                mainCtx.beginPath();
+                mainCtx.moveTo(cx - 10, cy);
+                mainCtx.lineTo(cx + 10, cy);
+                mainCtx.moveTo(cx, cy - 10);
+                mainCtx.lineTo(cx, cy + 10);
+                mainCtx.stroke();
+
+                // 中心円
+                mainCtx.beginPath();
+                mainCtx.arc(cx, cy, 3, 0, Math.PI * 2);
+                mainCtx.stroke();
+            }
+
+            // サムネイルのハイライトを同期
+            const thumbs = framesContainer.querySelectorAll('.frame-thumb');
+            thumbs.forEach((thumb, idx) => {
+                thumb.classList.toggle('current', idx === STATE.currentFrame);
+            });
+
+            currentFrameLabel.textContent = `${STATE.currentFrame + 1} / ${STATE.totalFrames}`;
+        }
+
+        /**
+         * UI表示状態を同期
+         */
+        function updateUI() {
+            fpsVal.textContent = STATE.fps;
+            const duration = (STATE.totalFrames / STATE.fps).toFixed(3);
+            durationVal.textContent = `${duration} s`;
+
+            const actualPxW = STATE.frameWidth * STATE.zoom;
+            const actualPxH = STATE.frameHeight * STATE.zoom;
+            zoomVal.textContent = `${STATE.zoom}x (${actualPxW}px)`;
+            mainCanvas.style.width = `${actualPxW}px`;
+            mainCanvas.style.height = `${actualPxH}px`;
+
+            btnPlayPause.textContent = STATE.isPlaying ? '⏸ 一時停止' : '▶ 再生';
+            btnPlayPause.classList.toggle('primary', STATE.isPlaying);
+
+            chkLoop.checked = STATE.isLoop;
+            chkPivot.checked = STATE.showPivot;
+            chkPpuGrid.checked = STATE.showPpuGrid;
+            chkBorder.checked = STATE.showBorder;
+
+            canvasWrapper.className = `canvas-wrapper ${STATE.bgClass}`;
+
+            // スプライト仕様UIの動的更新
+            sizeVal.textContent = STATE.frameWidth;
+            sizeValH.textContent = STATE.frameHeight;
+            frameCountVal.textContent = STATE.totalFrames;
+
+            // ヘッダーバッジ更新
+            badgeResolution.textContent = `${STATE.frameWidth} × ${STATE.frameHeight} px`;
+            badgeFrames.textContent = `${STATE.totalFrames} コマ`;
+            const unityUnit = (STATE.frameWidth / 32).toFixed(1);
+            badgePpu.textContent = `PPU 32 (${unityUnit}×${unityUnit} Unit)`;
+
+            // 詳細テーブル更新
+            frameSizeLabel.textContent = `${STATE.frameWidth} × ${STATE.frameHeight} px`;
+            totalFramesLabel.textContent = `${STATE.totalFrames} コマ`;
+            unitySizeLabel.textContent = `${unityUnit} × ${unityUnit} Unit`;
+            borderLabel.textContent = `${STATE.frameWidth}px`;
+
+            const stripInfo = document.getElementById('stripInfo');
+            if (stripInfo) {
+                stripInfo.textContent = `横${STATE.totalFrames}コマ並び (0〜${STATE.totalFrames - 1})`;
+            }
+
+            // プリセットボタンのactive同期 (幅と高さが等しい場合のみアクティブ表示)
+            document.querySelectorAll('.btn-preset-size').forEach(btn => {
+                const s = parseInt(btn.dataset.size, 10);
+                btn.classList.toggle('active', STATE.frameWidth === STATE.frameHeight && s === STATE.frameWidth);
+            });
+            document.querySelectorAll('.btn-preset-frames').forEach(btn => {
+                const f = parseInt(btn.dataset.frames, 10);
+                btn.classList.toggle('active', f === STATE.totalFrames);
+            });
+        }
+
+        /**
+         * メインアニメーションループ
+         * @param {number} timestamp
+         */
+        function animationLoop(timestamp) {
+            if (!lastFrameTime) lastFrameTime = timestamp;
+
+            const interval = 1000 / STATE.fps;
+            const elapsed = timestamp - lastFrameTime;
+
+            if (STATE.isPlaying && elapsed >= interval) {
+                lastFrameTime = timestamp - (elapsed % interval);
+
+                if (STATE.currentFrame < STATE.totalFrames - 1) {
+                    STATE.currentFrame++;
+                } else {
+                    if (STATE.isLoop) {
+                        STATE.currentFrame = 0;
+                    } else {
+                        STATE.isPlaying = false;
+                        updateUI();
+                    }
+                }
+                renderCurrentFrame();
+            }
+
+            requestAnimationFrame(animationLoop);
+        }
+
+        /**
+         * 画像ファイルの読み込み処理
+         * @param {File} file
+         */
+        function loadSpriteSheetFile(file) {
+            if (!file || !file.type.startsWith('image/')) {
+                alert('PNGなどの画像ファイルを選択してください。');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                spriteSheetImg.onload = () => {
+                    spriteSheetLoaded = true;
+                    sheetSizeLabel.textContent = `${spriteSheetImg.naturalWidth} × ${spriteSheetImg.naturalHeight} px`;
+
+                    // 自動判定オプションが有効な場合、画像サイズから幅・高さ・コマ数を自動設定
+                    if (chkAutoDetect.checked) {
+                        const imgH = spriteSheetImg.naturalHeight;
+                        const imgW = spriteSheetImg.naturalWidth;
+                        // 横並び前提：高さを1コマ高さとし、横幅/高さからコマ数と幅を推定
+                        if (imgH >= 16 && imgH <= 256) {
+                            const detectedH = imgH;
+                            const estimatedFrames = Math.max(1, Math.min(64, Math.round(imgW / imgH)));
+                            // 幅も正方形または整数分割で推定
+                            const detectedW = Math.max(16, Math.min(256, Math.round(imgW / estimatedFrames)));
+                            setSpriteConfig(detectedW, detectedH, estimatedFrames, true);
+                        }
+                    }
+
+                    // 幅がコマ数×幅、高さが1コマ高さと合わない場合のコンソールログ
+                    const expectedW = STATE.frameWidth * STATE.totalFrames;
+                    if (spriteSheetImg.naturalWidth !== expectedW || spriteSheetImg.naturalHeight !== STATE.frameHeight) {
+                        console.warn(`設定解像度（${expectedW}x${STATE.frameHeight}）と画像サイズ（${spriteSheetImg.naturalWidth}x${spriteSheetImg.naturalHeight}）に差異があります。`);
+                    }
+
+                    updateThumbnails();
+                    renderCurrentFrame();
+                };
+                spriteSheetImg.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- イベントリスナー設定 ---
+
+        // 1コマ幅 (W) 変更 input
+        inputFrameWidth.addEventListener('change', (e) => {
+            const valW = parseInt(e.target.value, 10) || 128;
+            const valH = chkLinkSize.checked ? valW : STATE.frameHeight;
+            setSpriteConfig(valW, valH, STATE.totalFrames, true);
+        });
+
+        // 1コマ高さ (H) 変更 input
+        inputFrameHeight.addEventListener('change', (e) => {
+            const valH = parseInt(e.target.value, 10) || 128;
+            const valW = chkLinkSize.checked ? valH : STATE.frameWidth;
+            setSpriteConfig(valW, valH, STATE.totalFrames, true);
+        });
+
+        // 縦横連動チェックボックス
+        chkLinkSize.addEventListener('change', (e) => {
+            if (e.target.checked && STATE.frameWidth !== STATE.frameHeight) {
+                // チェックON時は幅に合わせて高さを同期
+                setSpriteConfig(STATE.frameWidth, STATE.frameWidth, STATE.totalFrames, true);
+            }
+        });
+
+        // コマ数変更 input
+        inputFrameCount.addEventListener('change', (e) => {
+            const val = parseInt(e.target.value, 10) || 5;
+            setSpriteConfig(STATE.frameWidth, STATE.frameHeight, val, true);
+        });
+
+        // 解像度プリセットボタン（正方形を一括セット）
+        document.querySelectorAll('.btn-preset-size').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const s = parseInt(btn.dataset.size, 10);
+                setSpriteConfig(s, s, STATE.totalFrames, true);
+            });
+        });
+
+        // コマ数プリセットボタン
+        document.querySelectorAll('.btn-preset-frames').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const f = parseInt(btn.dataset.frames, 10);
+                setSpriteConfig(STATE.frameWidth, STATE.frameHeight, f, true);
+            });
+        });
+
+        // サンプル読み込み
+        btnLoadSample.addEventListener('click', () => {
+            spriteSheetImg.onload = () => {
+                spriteSheetLoaded = true;
+                sheetSizeLabel.textContent = `${STATE.frameWidth * STATE.totalFrames} × ${STATE.frameHeight} px (Sample)`;
+                updateThumbnails();
+                renderCurrentFrame();
+            };
+            spriteSheetImg.src = generateSampleSpriteSheet();
+        });
+
+        // ファイル選択
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                loadSpriteSheetFile(e.target.files[0]);
+            }
+        });
+
+        // ドラッグ＆ドロップ対応
+        window.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropOverlay.classList.add('active');
+        });
+
+        window.addEventListener('dragleave', (e) => {
+            if (e.clientX <= 0 || e.clientY <= 0) {
+                dropOverlay.classList.remove('active');
+            }
+        });
+
+        window.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropOverlay.classList.remove('active');
+            if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+                loadSpriteSheetFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // 再生 / 一時停止
+        btnPlayPause.addEventListener('click', () => {
+            STATE.isPlaying = !STATE.isPlaying;
+            updateUI();
+        });
+
+        // コマ戻し
+        btnStepPrev.addEventListener('click', () => {
+            STATE.isPlaying = false;
+            STATE.currentFrame = (STATE.currentFrame - 1 + STATE.totalFrames) % STATE.totalFrames;
+            updateUI();
+            renderCurrentFrame();
+        });
+
+        // コマ送り
+        btnStepNext.addEventListener('click', () => {
+            STATE.isPlaying = false;
+            STATE.currentFrame = (STATE.currentFrame + 1) % STATE.totalFrames;
+            updateUI();
+            renderCurrentFrame();
+        });
+
+        // FPS調整
+        fpsRange.addEventListener('input', (e) => {
+            STATE.fps = parseInt(e.target.value, 10);
+            updateUI();
+        });
+
+        // ループ切り替え
+        chkLoop.addEventListener('change', (e) => {
+            STATE.isLoop = e.target.checked;
+        });
+
+        // ズーム調整
+        zoomRange.addEventListener('input', (e) => {
+            STATE.zoom = parseInt(e.target.value, 10);
+            updateUI();
+        });
+
+        // 背景切り替え
+        document.querySelectorAll('.btn-bg').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.btn-bg').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                STATE.bgClass = btn.dataset.bg;
+                updateUI();
+            });
+        });
+
+        // ガイド切り替え
+        chkPivot.addEventListener('change', (e) => {
+            STATE.showPivot = e.target.checked;
+            renderCurrentFrame();
+        });
+
+        chkPpuGrid.addEventListener('change', (e) => {
+            STATE.showPpuGrid = e.target.checked;
+            renderCurrentFrame();
+        });
+
+        chkBorder.addEventListener('change', (e) => {
+            STATE.showBorder = e.target.checked;
+            renderCurrentFrame();
+        });
+
+        // キーボードショートカット
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                btnPlayPause.click();
+            } else if (e.code === 'ArrowLeft') {
+                e.preventDefault();
+                btnStepPrev.click();
+            } else if (e.code === 'ArrowRight') {
+                e.preventDefault();
+                btnStepNext.click();
+            }
+        });
+
+        // --- 初期化実行 ---
+        initThumbnails();
+        updateUI();
+        btnLoadSample.click();
+        requestAnimationFrame(animationLoop);
+    </script>
+</body>
+</html>
